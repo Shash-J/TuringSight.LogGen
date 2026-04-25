@@ -1,0 +1,22 @@
+# ── Python / venv ──
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Data (mounted at runtime, not baked in) ──
+data/
+
+# ── IDE / OS ──
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Dev-only files ──
+scripts/
+schema.py
+*.md
+.git/
+.gitignore

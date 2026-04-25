@@ -3,16 +3,13 @@ from ultralytics import YOLO
 
 class VisionEngine:
     def __init__(self):
-        # Using YOLOv8 nano (very fast on CPU)
-        self.model = YOLO('yolov8n.pt') 
+        print("[INIT] Loading YOLOv8m for high-accuracy person detection...")
+        self.model = YOLO('yolov8m.pt') 
         self.prev_frame = None
-        self.motion_threshold = 5000 # Pixel change count
+        self.motion_threshold = 8000 # Sensitivity for motion
 
-    def get_deterministic_analysis(self, frame):
-        """
-        Runs continuously. Returns (is_motion, cv_caption)
-        """
-        # 1. Motion Detection (Pixel level)
+    def get_analysis(self, frame):
+        # 1. Pixel-level Motion Detection
         motion_detected = False
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
@@ -24,20 +21,14 @@ class VisionEngine:
                 motion_detected = True
         self.prev_frame = gray
 
-        # 2. Deterministic Captioning (Object Detection)
-        results = self.model(frame, verbose=False)[0]
-        detections = results.boxes.cls.tolist()
-        names = results.names
-        
-        # Create a summary: "2 persons, 1 dog"
-        counts = {}
-        for cls_id in detections:
-            name = names[int(cls_id)]
-            counts[name] = counts.get(name, 0) + 1
-        
-        if not counts:
-            cv_caption = "No objects detected."
-        else:
-            cv_caption = ", ".join([f"{count} {name}(s)" for name, count in counts.items()])
+        # 2. Accurate Person Detection
+        results = self.model(frame, verbose=False, classes=0, conf=0.4)[0]
+        person_count = len(results.boxes)
 
-        return motion_detected, cv_caption
+        # 3. Format result
+        if person_count == 0:
+            cv_caption = "No persons detected."
+        else:
+            cv_caption = f"{person_count} person(s) detected."
+
+        return motion_detected, person_count, cv_caption

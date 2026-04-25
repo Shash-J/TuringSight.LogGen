@@ -1,0 +1,20 @@
+camera:
+  camera_id: "cam_01"
+  device_id: "office-edge-node-01"
+  user_id: "user1"
+  rtsp_url: "rtsp://admin:Tech%40007@106.51.57.8:554/cam/realmonitor?channel=1&subtype=0"
+  reconnect_sec: 5
+
+sampling:
+  frame_interval_sec: 4
+  frame_dir: "data/frames"
+
+output:
+  system_log_path: "data/logs/system_logs.jsonl"
+  semantic_log_path: "data/logs/office_logs.jsonl"
+
+model:
+  mode: "mock"
+  model_name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  device: "cuda"
+  torch_dtype: "auto"

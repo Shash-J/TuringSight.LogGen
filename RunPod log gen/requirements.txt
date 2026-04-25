@@ -1,0 +1,12 @@
+opencv-python-headless
+pillow
+numpy
+pyyaml
+transformers
+accelerate
+torch
+qwen-vl-utils
+autoawq
+torchvision
+gptqmodel
+bitsandbytes

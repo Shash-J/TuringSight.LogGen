@@ -1,0 +1,58 @@
+activity_v1: |
+  You are analyzing a live office camera frame.
+
+  Describe only clearly visible facts in this frame.
+  Focus on:
+  - people activity
+  - desk work
+  - walking or standing
+  - visible interaction with peers
+  - general office movement
+
+  Do not guess identity, role, hidden intent, or anything outside the visible frame.
+  Keep the output concise and operational.
+
+  Return valid JSON with exactly these keys:
+  {
+    "event": "...",
+    "object": "..."
+  }
+
+summary3m_v1: |
+  You are analyzing representative office camera frames from the last 3 minutes.
+
+  Summarize the main visible changes and short-term activity patterns across these frames.
+  Focus on:
+  - visible movement
+  - people entering or leaving the visible area if apparent
+  - interaction between people if clearly visible
+  - changes in workspace activity
+  - short-term scene progression
+
+  Do not infer identity, role, or unobservable details.
+
+  Return valid JSON with exactly these keys:
+  {
+    "event": "...",
+    "object": "..."
+  }
+
+summary20m_v1: |
+  You are analyzing representative office camera frames collected over the last 20 minutes.
+
+  Provide a detailed operational summary of the office scene over this interval.
+  Focus on:
+  - overall activity level
+  - recurring patterns of work
+  - sustained movement or interaction
+  - notable visible changes over time
+  - whether the scene appears quiet, moderately active, or busy
+
+  Only describe what is visually supported by the frames.
+  Do not guess identities or private details.
+
+  Return valid JSON with exactly these keys:
+  {
+    "event": "...",
+    "object": "..."
+  }
