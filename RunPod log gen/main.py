@@ -10,7 +10,9 @@ Orchestrates:
 
 import os
 import sys
+import signal
 import yaml
+import argparse
 from datetime import timedelta
 
 from src.rtsp.reader import RTSPFrameSampler
@@ -27,6 +29,7 @@ from src.scheduler.priority_queue import TaskPriorityQueue
 from src.inference.prompts import load_prompts
 from src.inference.model_service import build_model_service
 from src.inference.worker import VLMWorker
+from src.mqtt.publisher import MQTTPublisher
 
 
 def load_config(path: str = "configs/pipeline.yaml") -> dict:
@@ -35,10 +38,19 @@ def load_config(path: str = "configs/pipeline.yaml") -> dict:
 
 
 def main():
-    cfg = load_config()
+    parser = argparse.ArgumentParser(description="TuringSight LogGen Pipeline")
+    parser.add_argument("--config", type=str, default="configs/pipeline.yaml", help="Path to config file")
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
 
     # --- unpack config --------------------------------------------------
-    rtsp_url           = cfg["camera"]["rtsp_url"]
+    # Allow RTSP_URL env var to override config (for Docker / RunPod)
+    rtsp_url = os.environ.get("RTSP_URL") or cfg["camera"]["rtsp_url"]
+    if not rtsp_url or rtsp_url == "${RTSP_URL}":
+        print("[ERROR] RTSP_URL not set. Pass it via env var or configs/pipeline.yaml")
+        sys.exit(1)
+
     frame_interval_sec = cfg["sampling"]["frame_interval_sec"]
     frame_dir          = cfg["sampling"]["frame_dir"]
     reconnect_sec      = cfg["camera"]["reconnect_sec"]
@@ -61,6 +73,10 @@ def main():
     prompts       = load_prompts()
     model_service = build_model_service(cfg["model"])
 
+    # MQTT Publisher
+    mqtt_publisher = MQTTPublisher(cfg.get("mqtt", {}))
+    mqtt_publisher.connect()
+
     worker = VLMWorker(
         cfg=cfg,
         prompts=prompts,
@@ -68,6 +84,7 @@ def main():
         semantic_logger=semantic_logger,
         system_logger=system_logger,
         model_service=model_service,
+        mqtt_publisher=mqtt_publisher,
     )
 
     sampler = RTSPFrameSampler(
@@ -175,6 +192,15 @@ def main():
     print(f"  RTSP   : {rtsp_url[:40]}...")
     print("=" * 60)
 
+    # --- graceful shutdown for RunPod pod lifecycle (SIGTERM) -----------
+    def _handle_sigterm(signum, frame):
+        print("\n[INFO] SIGTERM received — shutting down gracefully.")
+        sampler.close()
+        mqtt_publisher.disconnect()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
     try:
         sampler.read_loop(
             on_frame_saved=handle_saved_frame,
@@ -184,6 +210,7 @@ def main():
         print("\n[INFO] Stopped by user.")
     finally:
         sampler.close()
+        mqtt_publisher.disconnect()
 
 
 if __name__ == "__main__":

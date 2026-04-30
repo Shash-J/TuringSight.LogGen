@@ -2,7 +2,8 @@ camera:
   camera_id: "cam_01"
   device_id: "office-edge-node-01"
   user_id: "user1"
-  rtsp_url: "rtsp://admin:Tech%40007@106.51.57.8:554/cam/realmonitor?channel=1&subtype=0"
+  # Set RTSP_URL env var at runtime; this is the fallback default
+  rtsp_url: "${RTSP_URL}"
   reconnect_sec: 5
 
 sampling:
@@ -14,7 +15,16 @@ output:
   semantic_log_path: "data/logs/office_logs.jsonl"
 
 model:
-  mode: "mock"
-  model_name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  mode: "real"
+  model_name: "LiquidAI/LFM2.5-VL-450M"
   device: "cuda"
-  torch_dtype: "auto"
+  torch_dtype: "bfloat16"
+
+mqtt:
+  enabled: true
+  endpoint: "a3dde9l2eto48i-ats.iot.ap-south-1.amazonaws.com"
+  port: 8883
+  topic: "edge/logs"
+  ca_cert: "configs/certs/AmazonRootCA1.pem"
+  client_cert: "configs/certs/certificate.pem.crt"
+  client_key: "configs/certs/private.pem.key"

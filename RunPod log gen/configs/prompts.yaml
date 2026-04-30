@@ -1,22 +1,14 @@
 activity_v1: |
   You are analyzing a live office camera frame.
 
-  Describe only clearly visible facts in this frame.
-  Focus on:
-  - people activity
-  - desk work
-  - walking or standing
-  - visible interaction with peers
-  - general office movement
+  Provide a natural-language description of exactly what is happening.
+  Do not use JSON formatting. You MUST return your response using exactly these two headers:
 
-  Do not guess identity, role, hidden intent, or anything outside the visible frame.
-  Keep the output concise and operational.
+  EVENT:
+  [Write a very short, concise, non-descriptive summary of the primary action (e.g. "Office activity", "People working", "Someone walking"). Do not write a paragraph here.]
 
-  Return valid JSON with exactly these keys:
-  {
-    "event": "...",
-    "object": "..."
-  }
+  OBJECT:
+  [Write a highly detailed, comprehensive paragraph describing everything in the scene. Describe the people, what exactly they are doing at their desks (typing, looking at screens), if anyone is looking at or using a mobile phone, and the overall office layout visible.]
 
 summary3m_v1: |
   You are analyzing representative office camera frames from the last 3 minutes.

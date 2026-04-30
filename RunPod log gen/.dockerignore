@@ -3,6 +3,8 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+.eggs/
+*.egg-info/
 
 # ── Data (mounted at runtime, not baked in) ──
 data/
@@ -16,7 +18,7 @@ Thumbs.db
 
 # ── Dev-only files ──
 scripts/
-schema.py
 *.md
 .git/
 .gitignore
+.env

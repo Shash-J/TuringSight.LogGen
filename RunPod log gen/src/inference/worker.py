@@ -5,6 +5,16 @@ import time
 def extract_json_fields(raw_text: str):
     raw_text = raw_text.strip()
 
+    # Try parsing plain text headers
+    if "EVENT:" in raw_text and "OBJECT:" in raw_text:
+        parts = raw_text.split("OBJECT:")
+        event_part = parts[0].replace("EVENT:", "").strip()
+        object_part = parts[1].strip()
+        return {
+            "event": event_part,
+            "object": object_part
+        }
+
     try:
         data = json.loads(raw_text)
         return {
@@ -28,7 +38,7 @@ def extract_json_fields(raw_text: str):
 
     return {
         "event": raw_text,
-        "object": "Unable to parse structured object field from model output."
+        "object": "General office scene"
     }
 
 
@@ -55,13 +65,15 @@ def build_semantic_log(task, parsed_output, cfg, inference_ms):
 
 
 class VLMWorker:
-    def __init__(self, cfg, prompts, task_queue, semantic_logger, system_logger, model_service):
+    def __init__(self, cfg, prompts, task_queue, semantic_logger, system_logger,
+                 model_service, mqtt_publisher=None):
         self.cfg = cfg
         self.prompts = prompts
         self.task_queue = task_queue
         self.semantic_logger = semantic_logger
         self.system_logger = system_logger
         self.model_service = model_service
+        self.mqtt_publisher = mqtt_publisher
 
     def run_once(self):
         if self.task_queue.empty():
@@ -89,7 +101,13 @@ class VLMWorker:
         inference_ms = int((time.time() - start) * 1000)
 
         log_record = build_semantic_log(task, parsed, self.cfg, inference_ms)
+
+        # Write to local JSONL
         self.semantic_logger.write(log_record)
+
+        # Publish to AWS IoT Core (if configured)
+        if self.mqtt_publisher:
+            self.mqtt_publisher.publish(log_record)
 
         self.system_logger.write({
             "timestamp_utc": task["timestamp_utc"],

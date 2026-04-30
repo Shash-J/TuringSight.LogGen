@@ -1,12 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cu124
 opencv-python-headless
 pillow
 numpy
 pyyaml
-transformers
+transformers>=4.51.0
 accelerate
-torch
-qwen-vl-utils
-autoawq
+jupyterlab
+torch>=2.5.0
 torchvision
-gptqmodel
-bitsandbytes
+paho-mqtt
