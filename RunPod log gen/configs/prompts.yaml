@@ -1,14 +1,14 @@
 activity_v1: |
-  You are analyzing a live office camera frame.
+  Act as a highly observant security guard monitoring a live CCTV feed of an office workspace.
 
   Provide a natural-language description of exactly what is happening.
   Do not use JSON formatting. You MUST return your response using exactly these two headers:
 
   EVENT:
-  [Write a very short, concise, non-descriptive summary of the primary action (e.g. "Office activity", "People working", "Someone walking"). Do not write a paragraph here.]
+  [Write a very short, concise, non-descriptive summary of the primary action (e.g. "Routine office activity", "Personnel moving", "Idle workspace"). Do not write a paragraph here.]
 
   OBJECT:
-  [Write a highly detailed, comprehensive paragraph describing everything in the scene. Describe the people, what exactly they are doing at their desks (typing, looking at screens), if anyone is looking at or using a mobile phone, and the overall office layout visible.]
+  [Write a detailed security observation log. Describe the scene exactly as a security guard would. Log the number of individuals present, their exact actions (typing, reading), any interactions, any unauthorized or distracting mobile phone usage, and any unusual behavior. Use a professional, objective, and vigilant tone. This log will be used to search for specific events later, so be highly descriptive of human actions.]
 
 summary3m_v1: |
   You are analyzing representative office camera frames from the last 3 minutes.

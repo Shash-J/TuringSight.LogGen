@@ -16,7 +16,7 @@ output:
 
 model:
   mode: "real"
-  model_name: "LiquidAI/LFM2.5-VL-450M"
+  model_name: "Qwen/Qwen2.5-VL-3B-Instruct"
   device: "cuda"
   torch_dtype: "bfloat16"
 

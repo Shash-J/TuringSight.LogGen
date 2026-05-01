@@ -1,7 +1,6 @@
 import json
 import random
 
-
 class MockVLMService:
     def __init__(self, model_name: str = "mock", device: str = "cpu", torch_dtype="auto"):
         self.model_name = model_name
@@ -10,31 +9,16 @@ class MockVLMService:
 
     def run_inference(self, frame_paths, prompt_text: str) -> str:
         sample_outputs = [
-            {
-                "event": "Normal office activity is visible with people seated at desks and occasional movement in the workspace.",
-                "object": "Office workspace with desks, chairs, and visible employees."
-            },
-            {
-                "event": "A few people appear to be working at their desks while one person is standing near the aisle.",
-                "object": "Office area showing employees, workstations, and open walking space."
-            },
-            {
-                "event": "Light interaction is visible in the office while other employees continue desk work.",
-                "object": "Office scene with seated staff and a visible interaction near the work area."
-            }
+            "EVENT: Normal office activity.\nOBJECT: People are seated at desks working on computers. No one is using a mobile phone.",
+            "EVENT: Office interaction.\nOBJECT: Two people are standing near the aisle talking. One person is looking at a mobile phone."
         ]
-        return json.dumps(random.choice(sample_outputs))
+        return random.choice(sample_outputs)
 
 
-class RealVLMService:
+class LiquidVLMService:
     """
-    Inference service for LiquidAI/LFM2.5-VL-450M.
-
-    Uses AutoModelForImageTextToText + AutoProcessor with the
-    processor.apply_chat_template() workflow as per the official
-    model card: https://huggingface.co/LiquidAI/LFM2.5-VL-450M
+    Inference service for LiquidAI/LFM2.5-VL models.
     """
-
     def __init__(self, model_name: str, device: str = "cuda", torch_dtype="bfloat16"):
         from PIL import Image
         import torch
@@ -76,28 +60,15 @@ class RealVLMService:
         print(f"[VLM] {model_name} loaded on {device}")
 
     def run_inference(self, frame_paths, prompt_text: str) -> str:
-        """
-        Run VLM inference on one or more frames.
-
-        For multi-frame tasks (summaries), each frame is added as a
-        separate image in the conversation content list.
-        """
         images = [self.Image.open(p).convert("RGB") for p in frame_paths]
 
-        # Build conversation content: one image entry per frame + prompt text
         content = []
         for img in images:
             content.append({"type": "image", "image": img})
         content.append({"type": "text", "text": prompt_text})
 
-        conversation = [
-            {
-                "role": "user",
-                "content": content,
-            }
-        ]
+        conversation = [{"role": "user", "content": content}]
 
-        # LFM2.5 pattern: apply_chat_template returns tokenized tensors directly
         inputs = self.processor.apply_chat_template(
             conversation,
             add_generation_prompt=True,
@@ -115,7 +86,6 @@ class RealVLMService:
                 repetition_penalty=1.05,
             )
 
-        # Slice off the input prompt tokens to get only the generated response
         input_length = inputs["input_ids"].shape[1]
         generated_tokens = outputs[0][input_length:]
         output_text = self.processor.decode(
@@ -125,21 +95,102 @@ class RealVLMService:
         return output_text
 
 
+class QwenVLMService:
+    """
+    Inference service for Qwen2.5-VL models.
+    """
+    def __init__(self, model_name: str, device: str = "cuda", torch_dtype="bfloat16"):
+        from PIL import Image
+        import torch
+        from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+        
+        self.Image = Image
+        self.torch = torch
+        self.model_name = model_name
+        self.device = device
+        
+        print(f"[VLM] Loading Qwen Model: {model_name} ...")
+        
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+            device_map="auto" if device == "cuda" else None,
+        )
+        
+        self.processor = AutoProcessor.from_pretrained(model_name)
+        
+        if device != "cuda":
+            self.model.to(device)
+            
+        print(f"[VLM] {model_name} loaded on {device}")
+        
+    def run_inference(self, frame_paths, prompt_text: str) -> str:
+        from qwen_vl_utils import process_vision_info
+        
+        images = [self.Image.open(p).convert("RGB") for p in frame_paths]
+        
+        # Build Qwen-specific content array
+        content = []
+        for img in images:
+            content.append({"type": "image", "image": img})
+        content.append({"type": "text", "text": prompt_text})
+        
+        messages = [{"role": "user", "content": content}]
+        
+        # Qwen workflow
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+        
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt"
+        ).to(self.model.device)
+        
+        with self.torch.no_grad():
+            generated_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=256
+            )
+            
+        # Extract output
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
+        
+        return output_text[0].strip()
+
+
 def build_model_service(cfg_model: dict):
     mode = cfg_model.get("mode", "mock").lower()
+    model_name = cfg_model.get("model_name", "mock")
 
     if mode == "mock":
         return MockVLMService(
-            model_name=cfg_model.get("model_name", "mock"),
+            model_name=model_name,
             device=cfg_model.get("device", "cpu"),
             torch_dtype=cfg_model.get("torch_dtype", "auto")
         )
 
     if mode == "real":
-        return RealVLMService(
-            model_name=cfg_model["model_name"],
-            device=cfg_model.get("device", "cuda"),
-            torch_dtype=cfg_model.get("torch_dtype", "bfloat16"),
-        )
+        if "qwen" in model_name.lower():
+            return QwenVLMService(
+                model_name=model_name,
+                device=cfg_model.get("device", "cuda"),
+                torch_dtype=cfg_model.get("torch_dtype", "bfloat16"),
+            )
+        else:
+            return LiquidVLMService(
+                model_name=model_name,
+                device=cfg_model.get("device", "cuda"),
+                torch_dtype=cfg_model.get("torch_dtype", "bfloat16"),
+            )
 
     raise ValueError(f"Unsupported model mode: {mode}")
