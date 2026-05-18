@@ -20,8 +20,8 @@ output:
 
 model:
   mode: "api"
-  model_name: "Qwen/Qwen2-VL-7B-Instruct-AWQ"
-  api_url: "http://localhost:8000/v1/chat/completions"
+  model_name: "/home/rvce/qwen_model"
+  api_url: "http://localhost:8001/v1/chat/completions"
   device: "cuda"
   torch_dtype: "bfloat16"
 

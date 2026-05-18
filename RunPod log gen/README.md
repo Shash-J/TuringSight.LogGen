@@ -1,95 +1,80 @@
-# TuringSight LogGen Pipeline
+# TuringSight Hybrid CV-VLM Surveillance Pipeline
 
-Real-time surveillance log generation using LFM2.5-VL-450M inference on RTSP camera feeds.
-Designed to run containerized on RunPod cloud GPU pods.
+This project implements a **State-of-the-Art Hybrid Event-Driven Surveillance Architecture**. It completely decouples continuous tracking (Computer Vision) from semantic reasoning (Vision-Language Models), ensuring zero missed events, accurate custom memory, and massively scalable inference via vLLM.
+
+## Architecture Overview
+
+Instead of blindly polling a VLM on every frame (which is slow and wastes compute), the system operates in two layers:
+
+1. **The CV Tracking Layer (YOLOv8 + ByteTrack):** Runs in real-time, assigning IDs to people and objects. It maintains a highly structured JSON "Memory State" of the room (e.g., tracking how long someone has been stationary).
+2. **The VLM Reasoning Layer (vLLM + Qwen2-VL):** The VLM is only triggered when the CV layer hits a specific heuristic (e.g., "Person has been stationary for 15s"). When triggered, the pipeline bundles the last 15 seconds of keyframes and the CV Memory State into a single request. 
+
+The VLM processes this via a high-throughput **vLLM API**, generating a fused log (CV State + VLM Insight) perfect for downstream RAG (Query LLM) applications.
+
+---
 
 ## Project Structure
 
 ```
 RunPod log gen/
 ├── configs/
-│   ├── pipeline.yaml          # Camera, sampling, output, and model config
-│   └── prompts.yaml           # VLM prompt templates (activity, 3m, 20m)
+│   ├── pipeline.yaml          # Camera, sampling, trigger rules, and vLLM API config
+│   └── prompts.yaml           # VLM prompt templates
 ├── data/
 │   ├── frames/                # Saved JPEG frames organised by date
-│   └── logs/                  # JSONL output (semantic + system logs)
-├── scripts/
-│   ├── test_rtsp_capture.py   # Quick RTSP connectivity check
-│   ├── test_scheduler.py      # Scheduler integration test (no VLM)
-│   └── test_vlm_worker.py     # Full pipeline test (capture → infer → log)
+│   └── logs/                  # JSONL output (fused semantic + system logs)
 ├── src/
+│   ├── cv/
+│   │   ├── tracker.py         # YOLOv8 + ByteTrack object tracking & Custom Memory State
+│   │   └── trigger_manager.py # Evaluates CV state to fire EventTasks
 │   ├── inference/
-│   │   ├── model_service.py   # MockVLMService / RealVLMService (LFM2.5-VL-450M)
-│   │   ├── prompts.py         # YAML prompt loader
-│   │   └── worker.py          # VLMWorker — runs inference, writes logs
+│   │   ├── model_service.py   # API_VLMService (communicates with external vLLM)
+│   │   └── worker.py          # Builds dynamic prompts combining CV state and config
 │   ├── rtsp/
-│   │   └── reader.py          # RTSPFrameSampler (OpenCV-based)
+│   │   └── reader.py          # RTSPFrameSampler (OpenCV-based, precise timestamps)
 │   ├── scheduler/
-│   │   ├── frame_buffer.py    # Circular frame buffer with time-based pruning
-│   │   ├── priority_queue.py  # Priority task queue wrapper
-│   │   └── task_builder.py    # Activity / summary task builders
+│   │   ├── frame_buffer.py    # Circular frame buffer
+│   │   └── task_builder.py    # Builds EventTasks with coalesced multi-frame input
 │   ├── storage/
-│   │   ├── frame_store.py     # Saves frames to disk with date folders
 │   │   └── jsonl_writer.py    # Append-only JSONL log writer
 │   └── utils/
-│       ├── schema.py          # Log schema helper
-│       └── time_utils.py      # UTC helpers, safe-filename timestamps
-├── main.py                    # ← Runtime entry point
+│       └── time_utils.py      # UTC helpers
+├── main.py                    # ← Runtime entry point (Event-driven loop)
 ├── requirements.txt
-├── Dockerfile
-├── .dockerignore
 └── README.md
 ```
 
 ## Quick Start
 
-### Local (development — mock mode)
+### 1. Start the vLLM Server (Backend)
+To guarantee high throughput, the VLM must be served using an inference engine. We recommend using **vLLM** with a 4-bit quantized model (AWQ/GPTQ) to save VRAM and increase speed 3x.
 
+On your GPU Node, run:
 ```bash
-python -m venv venv
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # Linux / macOS
+python -m vllm.entrypoints.openai.api_server \
+  --model Qwen/Qwen2-VL-7B-Instruct-AWQ \
+  --quantization awq \
+  --port 8000
+```
 
+### 2. Run the TuringSight Pipeline (Frontend)
+Ensure `ultralytics` and other dependencies are installed:
+```bash
 pip install -r requirements.txt
+```
 
-# Edit configs/pipeline.yaml: set mode to "mock" for testing without GPU
+Verify your `configs/pipeline.yaml` points to the vLLM server:
+```yaml
+model:
+  mode: "api"
+  api_url: "http://localhost:8000/v1/chat/completions"
+  model_name: "Qwen/Qwen2-VL-7B-Instruct-AWQ"
+```
+
+Start the pipeline:
+```bash
 python main.py
 ```
-
-### Docker Build & Run (local GPU)
-
-```bash
-cd "RunPod log gen"
-
-docker build -t turingsight-loggen .
-
-docker run --gpus all \
-  -e RTSP_URL="rtsp://admin:Tech%40007@106.51.57.8:554/cam/realmonitor?channel=1&subtype=0" \
-  -v $(pwd)/data:/app/data \
-  turingsight-loggen
-```
-
-### Deploy on RunPod (one-shot)
-
-1. **Push image to Docker Hub:**
-   ```bash
-   docker tag turingsight-loggen YOUR_DOCKERHUB_USER/turingsight-loggen:v1
-   docker push YOUR_DOCKERHUB_USER/turingsight-loggen:v1
-   ```
-
-2. **Create a GPU Pod on RunPod:**
-   - Go to [runpod.io](https://runpod.io) → Pods → Deploy
-   - Container image: `YOUR_DOCKERHUB_USER/turingsight-loggen:v1`
-   - GPU: Any GPU (RTX 3050+ is sufficient for the 450M model)
-   - Environment Variables:
-     - `RTSP_URL` = your RTSP stream URL
-   - Volume: Mount a network volume to `/app/data` for persistent logs/frames
-
-3. **The pipeline starts automatically** — no manual intervention needed.
-
-> **Note:** The RTSP camera must be reachable from the RunPod pod.
-> If your camera is on a private network, set up a VPN tunnel or an
-> RTSP relay (e.g. MediaMTX) to expose it publicly.
 
 ## Configuration
 
@@ -97,23 +82,33 @@ All runtime settings live in `configs/pipeline.yaml`:
 
 | Section    | Key                  | Description                        |
 |------------|----------------------|------------------------------------|
-| `camera`   | `rtsp_url`           | RTSP stream URL (overridden by RTSP_URL env var) |
-| `camera`   | `reconnect_sec`      | Seconds between reconnect attempts |
-| `sampling` | `frame_interval_sec` | Capture interval (seconds)         |
-| `model`    | `mode`               | `mock` or `real`                   |
-| `model`    | `model_name`         | `LiquidAI/LFM2.5-VL-450M`         |
-| `model`    | `device`             | `cuda` / `cpu`                     |
-| `model`    | `torch_dtype`        | `bfloat16` (recommended)           |
+| `camera`   | `rtsp_url`           | RTSP stream URL |
+| `camera`   | `focus_areas`        | List of dynamic rules injected into the prompt (e.g., "Check for mobile phones") |
+| `model`    | `mode`               | Set to `api` for the hybrid architecture |
+| `mqtt`     | `enabled`            | If `true`, logs are pushed directly to AWS IoT Core |
 
-## Model
+## Fused Log Output
 
-**LFM2.5-VL-450M** by Liquid AI — a 450M parameter vision-language model
-optimized for edge/real-time workloads. Model weights are pre-downloaded
-into the Docker image at build time (~900 MB).
+The output stored in `data/logs/office_logs.jsonl` (and sent to MQTT) is uniquely structured for Query LLMs. It fuses the absolute precision of Computer Vision with the semantic reasoning of the VLM.
 
-## Log Output
-
-- **Semantic logs** — `data/logs/office_logs.jsonl`
-  VLM-generated event + object descriptions per frame / interval.
-- **System logs** — `data/logs/system_logs.jsonl`
-  Structured operational events (connections, task creation, inference timing).
+**Example Log:**
+```json
+{
+  "user_id": "user1",
+  "camera_id": "cam_01",
+  "task_type": "event_driven",
+  "timestamp": 1779098418,
+  "cv_state": {
+    "event_type": "stationary_entity",
+    "entity_id": 1,
+    "time_stationary_sec": 15.2,
+    "cv_state": {
+      "class": "person",
+      "bbox": [100, 200, 300, 400],
+      "first_seen": 1779098400.0
+    }
+  },
+  "event": "The tracked person is leaning back in their chair, actively typing on their smartphone instead of looking at their workstation monitors.",
+  "object": "Surveillance Log"
+}
+```
