@@ -1,5 +1,7 @@
 import json
 import random
+import base64
+import requests
 
 class MockVLMService:
     def __init__(self, model_name: str = "mock", device: str = "cpu", torch_dtype="auto"):
@@ -171,6 +173,54 @@ class QwenVLMService:
         return output_text[0].strip()
 
 
+class API_VLMService:
+    """
+    Inference service for an OpenAI-compatible API (e.g., vLLM).
+    Supports multi-image requests natively.
+    """
+    def __init__(self, model_name: str, api_url: str = "http://localhost:8000/v1/chat/completions"):
+        self.model_name = model_name
+        self.api_url = api_url
+        print(f"[VLM] Initialized API client for model: {model_name} at {api_url}")
+
+    def run_inference(self, frame_paths, prompt_text: str) -> str:
+        content = [{"type": "text", "text": prompt_text}]
+        
+        for path in frame_paths:
+            with open(path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                # We assume JPEG for simplicity, or it infers from extension
+                img_url = f"data:image/jpeg;base64,{encoded_string}"
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": img_url}
+                })
+        
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
+            "max_tokens": 256,
+            "temperature": 0.2
+        }
+        
+        headers = {"Content-Type": "application/json"}
+        try:
+            response = requests.post(self.api_url, headers=headers, json=payload)
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            print(f"[VLM API ERROR] {e}")
+            if 'response' in locals() and hasattr(response, 'text'):
+                print(f"[VLM API RESPONSE] {response.text}")
+            return "EVENT: Error\nOBJECT: VLM API failed to respond."
+
+
 def build_model_service(cfg_model: dict):
     mode = cfg_model.get("mode", "mock").lower()
     model_name = cfg_model.get("model_name", "mock")
@@ -180,6 +230,12 @@ def build_model_service(cfg_model: dict):
             model_name=model_name,
             device=cfg_model.get("device", "cpu"),
             torch_dtype=cfg_model.get("torch_dtype", "auto")
+        )
+        
+    if mode == "api":
+        return API_VLMService(
+            model_name=model_name,
+            api_url=cfg_model.get("api_url", "http://localhost:8000/v1/chat/completions")
         )
 
     if mode == "real":
