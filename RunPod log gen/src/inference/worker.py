@@ -12,7 +12,7 @@ def extract_json_fields(raw_text: str):
 def build_semantic_log(task, parsed_output, cfg, inference_ms):
     camera_cfg = cfg["camera"]
 
-    return {
+    log = {
         "user_id": camera_cfg["user_id"],
         "device_id": camera_cfg["device_id"],
         "camera_id": camera_cfg["camera_id"],
@@ -29,6 +29,11 @@ def build_semantic_log(task, parsed_output, cfg, inference_ms):
             "inference_ms": inference_ms
         }
     }
+    
+    if "cv_event" in task:
+        log["cv_state"] = task["cv_event"]
+        
+    return log
 
 
 class VLMWorker:
@@ -61,7 +66,16 @@ class VLMWorker:
             }
         })
 
-        prompt_text = self.prompts[task["prompt_version"]]
+        prompt_text = self.prompts.get(task["prompt_version"], "Describe what is happening.")
+        
+        if task.get("task_type") == "event_driven":
+            cv_event = task.get("cv_event", {})
+            focus_areas = self.cfg.get("camera", {}).get("focus_areas", ["Describe the person's actions."])
+            prompt_text = (
+                f"{prompt_text}\n"
+                f"CV State Information: {json.dumps(cv_event)}\n"
+                f"Focus on the following: {', '.join(focus_areas)}\n"
+            )
         raw_output = self.model_service.run_inference(task["frame_paths"], prompt_text)
         parsed = extract_json_fields(raw_output)
 

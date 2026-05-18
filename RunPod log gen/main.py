@@ -21,10 +21,12 @@ from src.storage.jsonl_writer import JSONLWriter
 from src.utils.time_utils import utc_iso
 from src.scheduler.frame_buffer import FrameBuffer
 from src.scheduler.task_builder import (
-    build_activity_task,
     build_summary_task,
     should_trigger,
+    build_event_task,
 )
+from src.cv.tracker import CVTracker
+from src.cv.trigger_manager import TriggerManager
 from src.scheduler.priority_queue import TaskPriorityQueue
 from src.inference.prompts import load_prompts
 from src.inference.model_service import build_model_service
@@ -72,6 +74,9 @@ def main():
 
     prompts       = load_prompts()
     model_service = build_model_service(cfg["model"])
+    
+    cv_tracker = CVTracker()
+    trigger_manager = TriggerManager()
 
     # MQTT Publisher
     mqtt_publisher = MQTTPublisher(cfg.get("mqtt", {}))
@@ -124,6 +129,7 @@ def main():
         # 1. persist frame to disk
         frame_path = frame_store.save_frame(frame, ts_dt)
         frame_buffer.add(ts_dt, frame_path)
+        now_ts = ts_dt.timestamp()
 
         system_logger.write({
             "timestamp_utc": utc_iso(ts_dt),
@@ -132,11 +138,19 @@ def main():
             "event": "frame_saved",
             "details": {"frame_path": frame_path},
         })
-
-        # 3. 3-minute summary
-        summary_triggered = False
-        now_ts = ts_dt.timestamp()
         
+        # 2. CV State Tracking
+        cv_state = cv_tracker.process_frame(frame, now_ts)
+        
+        # 3. Trigger Manager (Event-Driven Task Creation)
+        events = trigger_manager.check_triggers(cv_state, now_ts)
+        for event in events:
+            event_task = build_event_task(event, frame_buffer, frame_count=4)
+            if event_task:
+                task_queue.put(event_task)
+                log_task_created(event_task)
+
+        # 4. 3-minute summary
         if should_trigger(last_3m_run, now_ts, 180):
             items_3m = frame_buffer.get_between(
                 ts_dt - timedelta(seconds=180), ts_dt
@@ -153,9 +167,8 @@ def main():
                 task_queue.put(task_3m)
                 log_task_created(task_3m)
             last_3m_run = now_ts
-            summary_triggered = True
 
-        # 4. 20-minute summary
+        # 5. 20-minute summary
         if should_trigger(last_20m_run, now_ts, 1200):
             items_20m = frame_buffer.get_between(
                 ts_dt - timedelta(seconds=1200), ts_dt
@@ -166,25 +179,14 @@ def main():
                 frame_items=items_20m,
                 frame_count=10,
                 prompt_version="summary20m_v1",
-                priority=1,
+                priority=3,
             )
             if task_20m:
                 task_queue.put(task_20m)
                 log_task_created(task_20m)
             last_20m_run = now_ts
-            summary_triggered = True
 
-        # 2. per-frame activity task (only if no summary triggered)
-        if not summary_triggered:
-            latest_item = frame_buffer.latest()
-            if latest_item:
-                activity_task = build_activity_task(
-                    latest_item, prompt_version="activity_v1"
-                )
-                task_queue.put(activity_task)
-                log_task_created(activity_task)
-
-        # 5. drain queue — run inference for every pending task
+        # 6. drain queue — run inference for every pending task
         while not task_queue.empty():
             worker.run_once()
 

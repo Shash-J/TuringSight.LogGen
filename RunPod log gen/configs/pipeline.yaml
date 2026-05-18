@@ -5,6 +5,10 @@ camera:
   # Set RTSP_URL env var at runtime; this is the fallback default
   rtsp_url: "${RTSP_URL}"
   reconnect_sec: 5
+  focus_areas:
+    - "Detail exactly what people are doing."
+    - "Specifically note if anyone is using a mobile phone."
+    - "Note any unusual or suspicious behavior."
 
 sampling:
   frame_interval_sec: 6
