@@ -104,7 +104,7 @@ class QwenVLMService:
     def __init__(self, model_name: str, device: str = "cuda", torch_dtype="bfloat16"):
         from PIL import Image
         import torch
-        from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+        from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
         
         self.Image = Image
         self.torch = torch
@@ -113,7 +113,7 @@ class QwenVLMService:
         
         print(f"[VLM] Loading Qwen Model: {model_name} ...")
         
-        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+        self.model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_name,
             torch_dtype=torch_dtype,
             device_map="auto" if device == "cuda" else None,

@@ -19,11 +19,10 @@ output:
   semantic_log_path: "data/logs/office_logs.jsonl"
 
 model:
-  mode: "api"
+  mode: "real"
   model_name: "/home/rvce/qwen_model"
-  api_url: "http://localhost:8001/v1/chat/completions"
   device: "cuda"
-  torch_dtype: "bfloat16"
+  torch_dtype: "float16"
 
 mqtt:
   enabled: true
