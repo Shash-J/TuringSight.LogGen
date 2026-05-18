@@ -10,3 +10,4 @@ torch>=2.5.0
 torchvision
 paho-mqtt
 qwen-vl-utils
+ultralytics
