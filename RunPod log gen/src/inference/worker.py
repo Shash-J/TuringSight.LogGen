@@ -3,42 +3,9 @@ import time
 
 
 def extract_json_fields(raw_text: str):
-    raw_text = raw_text.strip()
-
-    # Try parsing plain text headers
-    if "EVENT:" in raw_text and "OBJECT:" in raw_text:
-        parts = raw_text.split("OBJECT:")
-        event_part = parts[0].replace("EVENT:", "").strip()
-        object_part = parts[1].strip()
-        return {
-            "event": event_part,
-            "object": object_part
-        }
-
-    try:
-        data = json.loads(raw_text)
-        return {
-            "event": data.get("event", ""),
-            "object": data.get("object", "")
-        }
-    except Exception:
-        pass
-
-    start = raw_text.find("{")
-    end = raw_text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        try:
-            data = json.loads(raw_text[start:end + 1])
-            return {
-                "event": data.get("event", ""),
-                "object": data.get("object", "")
-            }
-        except Exception:
-            pass
-
     return {
-        "event": raw_text,
-        "object": "General office scene"
+        "event": raw_text.strip(),
+        "object": "Surveillance Log"
     }
 
 

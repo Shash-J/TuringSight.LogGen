@@ -1,14 +1,5 @@
 activity_v1: |
-  Act as a highly observant security guard monitoring a live CCTV feed of an office workspace.
-
-  Provide a natural-language description of exactly what is happening.
-  Do not use JSON formatting. You MUST return your response using exactly these two headers:
-
-  EVENT:
-  [Write a very short, concise, non-descriptive summary of the primary action (e.g. "Routine office activity", "Personnel moving", "Idle workspace"). Do not write a paragraph here.]
-
-  OBJECT:
-  [Write a detailed security observation log. Describe the scene exactly as a security guard would. Log the number of individuals present, their exact actions (typing, reading), any interactions, any unauthorized or distracting mobile phone usage, and any unusual behavior. Use a professional, objective, and vigilant tone. This log will be used to search for specific events later, so be highly descriptive of human actions.]
+  Describe exactly what each person in this image is currently doing. Keep it simple and strictly factual. Provide a concise, natural language paragraph.
 
 summary3m_v1: |
   You are analyzing representative office camera frames from the last 3 minutes.
@@ -21,13 +12,7 @@ summary3m_v1: |
   - changes in workspace activity
   - short-term scene progression
 
-  Do not infer identity, role, or unobservable details.
-
-  Return valid JSON with exactly these keys:
-  {
-    "event": "...",
-    "object": "..."
-  }
+  Do not infer identity, role, or unobservable details. Provide a natural language summary paragraph.
 
 summary20m_v1: |
   You are analyzing representative office camera frames collected over the last 20 minutes.
@@ -41,10 +26,4 @@ summary20m_v1: |
   - whether the scene appears quiet, moderately active, or busy
 
   Only describe what is visually supported by the frames.
-  Do not guess identities or private details.
-
-  Return valid JSON with exactly these keys:
-  {
-    "event": "...",
-    "object": "..."
-  }
+  Do not guess identities or private details. Provide a natural language summary paragraph.

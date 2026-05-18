@@ -133,18 +133,10 @@ def main():
             "details": {"frame_path": frame_path},
         })
 
-        # 2. per-frame activity task
-        latest_item = frame_buffer.latest()
-        if latest_item:
-            activity_task = build_activity_task(
-                latest_item, prompt_version="activity_v1"
-            )
-            task_queue.put(activity_task)
-            log_task_created(activity_task)
-
-        now_ts = ts_dt.timestamp()
-
         # 3. 3-minute summary
+        summary_triggered = False
+        now_ts = ts_dt.timestamp()
+        
         if should_trigger(last_3m_run, now_ts, 180):
             items_3m = frame_buffer.get_between(
                 ts_dt - timedelta(seconds=180), ts_dt
@@ -161,6 +153,7 @@ def main():
                 task_queue.put(task_3m)
                 log_task_created(task_3m)
             last_3m_run = now_ts
+            summary_triggered = True
 
         # 4. 20-minute summary
         if should_trigger(last_20m_run, now_ts, 1200):
@@ -179,6 +172,17 @@ def main():
                 task_queue.put(task_20m)
                 log_task_created(task_20m)
             last_20m_run = now_ts
+            summary_triggered = True
+
+        # 2. per-frame activity task (only if no summary triggered)
+        if not summary_triggered:
+            latest_item = frame_buffer.latest()
+            if latest_item:
+                activity_task = build_activity_task(
+                    latest_item, prompt_version="activity_v1"
+                )
+                task_queue.put(activity_task)
+                log_task_created(activity_task)
 
         # 5. drain queue — run inference for every pending task
         while not task_queue.empty():

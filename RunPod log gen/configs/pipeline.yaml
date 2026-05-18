@@ -7,7 +7,7 @@ camera:
   reconnect_sec: 5
 
 sampling:
-  frame_interval_sec: 4
+  frame_interval_sec: 6
   frame_dir: "data/frames"
 
 output:
@@ -16,7 +16,7 @@ output:
 
 model:
   mode: "real"
-  model_name: "Qwen/Qwen2.5-VL-3B-Instruct"
+  model_name: "/home/rvce/qwen_model"
   device: "cuda"
   torch_dtype: "bfloat16"
 

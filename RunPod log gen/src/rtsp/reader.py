@@ -76,5 +76,8 @@ class RTSPFrameSampler:
             now_ts = time.time()
             if now_ts - self.last_saved_ts >= self.frame_interval_sec:
                 ts_dt = datetime.now(timezone.utc)
+                # Resize frame to prevent CUDA Out Of Memory errors during inference
+                # 720p is plenty of detail for Qwen2.5-VL while keeping VRAM usage low
+                frame = cv2.resize(frame, (1280, 720))
                 on_frame_saved(frame, ts_dt)
                 self.last_saved_ts = now_ts
