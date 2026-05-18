@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 
 def pick_evenly_spaced_frames(frame_items, count):
@@ -64,3 +64,32 @@ def should_trigger(last_run_ts, now_ts, interval_sec):
     if last_run_ts is None:
         return True
     return (now_ts - last_run_ts) >= interval_sec
+
+
+def build_event_task(event_data: dict, frame_buffer, frame_count: int = 4):
+    """
+    Builds an EventTask by coalescing multiple frames from the buffer
+    leading up to the trigger event.
+    """
+    trigger_ts_float = event_data["trigger_ts"]
+    end_dt = datetime.fromtimestamp(trigger_ts_float)
+    # Grab frames from the last 15 seconds leading up to the trigger
+    start_dt = end_dt - timedelta(seconds=15) 
+    
+    items = frame_buffer.get_between(start_dt, end_dt)
+    selected = pick_evenly_spaced_frames(items, frame_count)
+    
+    if not selected:
+        return None
+        
+    return {
+        "task_id": f"event_{event_data['event_type']}_{event_data['entity_id']}_{int(trigger_ts_float)}",
+        "task_type": "event_driven",
+        "priority": 1, # High priority for active events
+        "timestamp_utc": end_dt.isoformat(),
+        "interval_start_utc": start_dt.isoformat(),
+        "interval_end_utc": end_dt.isoformat(),
+        "frame_paths": [x["frame_path"] for x in selected],
+        "cv_event": event_data, # Pass structured CV memory to VLM
+        "prompt_version": "event_dynamic"
+    }
