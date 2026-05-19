@@ -14,6 +14,9 @@ import signal
 import yaml
 import argparse
 from datetime import timedelta
+import torch
+
+torch.backends.cudnn.enabled = False
 
 from src.rtsp.reader import RTSPFrameSampler
 from src.storage.frame_store import FrameStore
