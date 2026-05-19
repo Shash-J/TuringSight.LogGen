@@ -71,8 +71,9 @@ def build_event_task(event_data: dict, frame_buffer, frame_count: int = 4):
     Builds an EventTask by coalescing multiple frames from the buffer
     leading up to the trigger event.
     """
+    from datetime import timezone
     trigger_ts_float = event_data["trigger_ts"]
-    end_dt = datetime.fromtimestamp(trigger_ts_float)
+    end_dt = datetime.fromtimestamp(trigger_ts_float, timezone.utc)
     # Grab frames from the last 15 seconds leading up to the trigger
     start_dt = end_dt - timedelta(seconds=15) 
     
