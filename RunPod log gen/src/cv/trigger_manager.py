@@ -17,6 +17,10 @@ class TriggerManager:
         """
         Evaluates the current CV memory state and returns a list of triggered events.
         """
+        active_count = len(cv_state)
+        if active_count > 0:
+            print(f"[DEBUG-CV] Tracking {active_count} entities in frame. Checking triggers...")
+
         events = []
         
         for entity_id, data in cv_state.items():
